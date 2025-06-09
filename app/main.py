@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import T5Tokenizer, T5ForConditionalGeneration
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, Column, Integer, Text, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -11,8 +11,6 @@ import os
 
 # Load environment variables
 load_dotenv()
-
-# ENV config
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # DB setup
@@ -20,7 +18,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Define DB model
+# DB model
 class GrammarCheck(Base):
     __tablename__ = "grammar_checks"
 
@@ -30,31 +28,36 @@ class GrammarCheck(Base):
     hasil = Column(Text)
     user_id = Column(Integer, nullable=True)
 
-# Create table if not exists
 Base.metadata.create_all(bind=engine)
 
 # FastAPI app
 app = FastAPI()
 
-# CORS middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173"],  # ganti dengan FE kamu
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load grammar correction model
-tokenizer = T5Tokenizer.from_pretrained("vennify/t5-base-grammar-correction")
-model = T5ForConditionalGeneration.from_pretrained("vennify/t5-base-grammar-correction")
+# Lazy-load model
+tokenizer = None
+model = None
 
-# Request schema
+def load_model():
+    global tokenizer, model
+    if tokenizer is None or model is None:
+        tokenizer = T5Tokenizer.from_pretrained("t5-small")
+        model = T5ForConditionalGeneration.from_pretrained("t5-small")
+
+# Request body
 class TextInput(BaseModel):
     text: str
     user_id: int | None = None
 
-# Dependency
+# DB dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -62,19 +65,19 @@ def get_db():
     finally:
         db.close()
 
-# Route: Grammar Correction + DB Save
+# Route
 @app.post("/correct")
 def correct_text(data: TextInput, db: Session = Depends(get_db)):
+    load_model()
     input_text = "grammar: " + data.text
     inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True)
     outputs = model.generate(inputs, max_length=512, num_beams=5, early_stopping=True)
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Save to DB
+    # Save to DB (optional)
     # entry = GrammarCheck(
     #     check_grammar=data.text,
     #     hasil=corrected,
-    #     created_at=datetime.utcnow(),
     #     user_id=data.user_id
     # )
     # db.add(entry)
