@@ -6,4 +6,4 @@ sqlalchemy>=2.0
 psycopg2-binary>=2.9
 transformers==4.40
 sentencepiece
-torch==2.2.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+torch>=2.2,<2.3
