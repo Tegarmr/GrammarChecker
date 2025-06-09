@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cache model folder (kalau kamu mau agar cache_model TIDAK ikut push ke repo, uncomment ini)
+# cache_model/
+
+# Environment variables
+.env
