@@ -9,19 +9,15 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# DB setup
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# DB model
 class GrammarCheck(Base):
     __tablename__ = "grammar_checks"
-
     grammar_check_id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     check_grammar = Column(Text)
@@ -30,34 +26,29 @@ class GrammarCheck(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# FastAPI app
 app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # ganti dengan FE kamu
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Lazy-load model
 tokenizer = None
 model = None
 
 def load_model():
     global tokenizer, model
     if tokenizer is None or model is None:
-        tokenizer = T5Tokenizer.from_pretrained("t5-small")
-        model = T5ForConditionalGeneration.from_pretrained("t5-small")
+        tokenizer = T5Tokenizer.from_pretrained("app/cache_model")
+        model = T5ForConditionalGeneration.from_pretrained("app/cache_model")
 
-# Request body
 class TextInput(BaseModel):
     text: str
     user_id: int | None = None
 
-# DB dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -65,7 +56,6 @@ def get_db():
     finally:
         db.close()
 
-# Route
 @app.post("/correct")
 def correct_text(data: TextInput, db: Session = Depends(get_db)):
     load_model()
@@ -74,17 +64,10 @@ def correct_text(data: TextInput, db: Session = Depends(get_db)):
     outputs = model.generate(inputs, max_length=512, num_beams=5, early_stopping=True)
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Save to DB (optional)
-    # entry = GrammarCheck(
-    #     check_grammar=data.text,
-    #     hasil=corrected,
-    #     user_id=data.user_id
-    # )
+    # Uncomment untuk simpan ke DB
+    # entry = GrammarCheck(check_grammar=data.text, hasil=corrected, user_id=data.user_id)
     # db.add(entry)
     # db.commit()
     # db.refresh(entry)
 
-    return {
-        "check": data.text,
-        "hasil": corrected
-    }
+    return {"check": data.text, "hasil": corrected}
